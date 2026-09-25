@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кто хочет стать отличником? - Сольфеджио</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Montserrat', sans-serif; background: radial-gradient(circle at center, #111827 0%, #090a16 100%); }
+        .clip-hex { clip-path: polygon(4% 0, 96% 0, 100% 50%, 96% 100%, 4% 100%, 0 50%); }
+        .clip-hex-line { clip-path: polygon(3.5% 0, 96.5% 0, 100% 50%, 96.5% 100%, 3.5% 100%, 0 50%); }
+        .question-box { background: linear-gradient(180deg, #1e3a8a 0%, #0f172a 100%); border: 2px solid #eab308; }
+        .answer-box { 
+            background: linear-gradient(180deg, #1e3a8a 0%, #0f172a 100%); 
+            transition: all 0.3s ease; 
+            border: 2px solid #3b82f6; 
+            cursor: pointer;
+        }
+        .answer-box:hover { box-shadow: 0 0 15px rgba(59, 130, 246, 0.6); }
+        .answer-box.selected { background: linear-gradient(180deg, #ca8a04 0%, #a16207 100%); border-color: #fef08a; }
+        .answer-box.correct { background: linear-gradient(180deg, #16a34a 0%, #15803d 100%); border-color: #22c55e; animation: pulse-green 1s infinite; }
+        .answer-box.wrong { background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%); border-color: #ef4444; }
+        
+        .lifeline { transition: all 0.3s; }
+        .lifeline:hover:not(.used) { transform: scale(1.1); filter: brightness(1.2); cursor: pointer; }
+        .lifeline.used { opacity: 0.3; filter: grayscale(100%); cursor: not-allowed; pointer-events: none; }
+        
+        .ladder-item { transition: all 0.2s; }
+        .ladder-item.active { background: #eab308; color: #090a16; font-weight: 800; border-radius: 4px; padding: 2px 8px; transform: scale(1.05); }
+        .ladder-item.safe { color: #eab308; font-weight: 800; }
+        .ladder-item.safe.active { color: #090a16; }
+
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+
+        .modal-overlay { background: rgba(9, 10, 22, 0.95); backdrop-filter: blur(8px); }
+        .bar-chart-col { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; width: 40px; }
+        .bar-fill { width: 100%; background: #3b82f6; transition: height 1.5s ease-out; border-radius: 4px 4px 0 0; }
+        
+        .timer-circle {
+            width: 150px; height: 150px; border-radius: 50%; border: 8px solid #eab308;
+            display: flex; align-items: center; justify-content: center; font-size: 4rem;
+            font-weight: 800; color: #eab308; box-shadow: 0 0 30px rgba(234, 179, 8, 0.5);
+            animation: pulse-timer 1s infinite;
+        }
+        @keyframes pulse-timer { 50% { transform: scale(1.05); } }
+    </style>
+</head>
+<body class="text-white h-screen w-screen overflow-hidden flex flex-col select-none">
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#090a16] modal-overlay">
+        <h1 class="text-5xl md:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-600 mb-6 text-center drop-shadow-[0_0_15px_rgba(234,179,8,0.5)]">Кто хочет стать<br>отличником?</h1>
+        <p class="text-2xl mb-10 text-blue-300 font-semibold">Итоговая проверка по сольфеджио</p>
+        <button onclick="startGame()" class="px-12 py-5 bg-gradient-to-r from-blue-700 to-blue-900 border-2 border-yellow-500 rounded-full text-2xl font-bold hover:shadow-[0_0_20px_rgba(234,179,8,0.8)] transition-all transform hover:scale-105 uppercase tracking-wider">Начать игру</button>
+    </div>
+
+    <!-- Main Game Container -->
+    <div class="flex-1 flex w-full max-w-[1920px] mx-auto p-4 md:p-8 relative">
+        <!-- Left: Game Area -->
+        <div class="flex-1 flex flex-col relative z-10 pr-4 md:pr-8">
+            <!-- Header & Lifelines -->
+            <div class="flex justify-between items-center mb-auto">
+                <div class="text-yellow-500 text-3xl font-black tracking-widest uppercase text-shadow-md hidden sm:block">СОЛЬФЕДЖИО</div>
+                <div class="flex space-x-4 md:space-x-6 mx-auto sm:mx-0">
+                    <div id="life-50" class="lifeline w-14 h-10 md:w-16 md:h-12 border-2 border-yellow-500 rounded-full flex items-center justify-center text-lg md:text-xl font-bold bg-blue-900 shadow-[0_0_15px_rgba(234,179,8,0.3)]" onclick="use5050()" title="50 на 50">50:50</div>
+                    <div id="life-aud" class="lifeline w-14 h-10 md:w-16 md:h-12 border-2 border-yellow-500 rounded-full flex items-center justify-center text-xl md:text-2xl font-bold bg-blue-900 shadow-[0_0_15px_rgba(234,179,8,0.3)]" onclick="useAudience()" title="Помощь зала">👥</div>
+                    <div id="life-team" class="lifeline w-14 h-10 md:w-16 md:h-12 border-2 border-yellow-500 rounded-full flex items-center justify-center text-xl md:text-2xl font-bold bg-blue-900 shadow-[0_0_15px_rgba(234,179,8,0.3)]" onclick="useTeamCouncil()" title="Командный совет (30 сек)">⏱️</div>
+                </div>
+            </div>
+
+            <!-- Question Area -->
+            <div class="w-full mt-12 mb-10 relative">
+                <div class="absolute inset-0 bg-yellow-500 clip-hex-line opacity-50 blur-[2px]"></div>
+                <div class="question-box clip-hex w-full min-h-[140px] flex items-center justify-center p-6 md:p-8 relative z-10">
+                    <h2 id="question-text" class="text-2xl md:text-4xl text-center font-bold text-white drop-shadow-lg leading-tight">Загрузка вопроса...</h2>
+                </div>
+            </div>
+
+            <!-- Answers Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 md:gap-y-6 w-full max-w-5xl mx-auto pb-4" id="answers-container">
+                <!-- Answers generated via JS -->
+            </div>
+        </div>
+
+        <!-- Right: Prize Ladder -->
+        <div class="w-64 md:w-72 border-l-2 border-blue-800 pl-4 md:pl-6 flex flex-col justify-end pb-8 hidden md:flex relative z-10">
+            <div class="flex flex-col-reverse space-y-reverse space-y-2" id="ladder">
+                <!-- Ladder generated via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Audience Modal -->
+    <div id="modal-audience" class="absolute inset-0 z-40 hidden flex items-center justify-center modal-overlay">
+        <div class="bg-blue-950 border-2 border-yellow-500 rounded-3xl p-10 max-w-lg w-full shadow-[0_0_40px_rgba(37,99,235,0.4)]">
+            <h3 class="text-2xl md:text-3xl font-extrabold text-center text-yellow-500 mb-8 uppercase tracking-wide">Голосование класса</h3>
+            <div class="flex justify-around items-end h-56 border-b-2 border-blue-800 pb-2" id="chart-bars">
+                <div class="bar-chart-col"><div id="bar-0" class="bar-fill h-0"></div><span class="mt-3 text-xl font-bold">A</span><span class="text-sm text-gray-400 font-semibold" id="pct-0">0%</span></div>
+                <div class="bar-chart-col"><div id="bar-1" class="bar-fill h-0"></div><span class="mt-3 text-xl font-bold">B</span><span class="text-sm text-gray-400 font-semibold" id="pct-1">0%</span></div>
+                <div class="bar-chart-col"><div id="bar-2" class="bar-fill h-0"></div><span class="mt-3 text-xl font-bold">C</span><span class="text-sm text-gray-400 font-semibold" id="pct-2">0%</span></div>
+                <div class="bar-chart-col"><div id="bar-3" class="bar-fill h-0"></div><span class="mt-3 text-xl font-bold">D</span><span class="text-sm text-gray-400 font-semibold" id="pct-3">0%</span></div>
+            </div>
+            <button onclick="closeModal('modal-audience')" class="mt-10 w-full py-4 bg-gradient-to-r from-blue-700 to-blue-900 hover:from-blue-600 hover:to-blue-800 rounded-full text-white text-xl font-bold transition shadow-lg border border-blue-500">Понятно, спасибо!</button>
+        </div>
+    </div>
+
+    <!-- Team Timer Modal -->
+    <div id="modal-team" class="absolute inset-0 z-40 hidden flex items-center justify-center modal-overlay">
+        <div class="bg-blue-950 border-2 border-yellow-500 rounded-3xl p-12 flex flex-col items-center shadow-[0_0_40px_rgba(234,179,8,0.3)]">
+            <h3 class="text-2xl md:text-3xl font-extrabold text-yellow-500 mb-10 uppercase tracking-widest text-center">Командный совет</h3>
+            <div class="timer-circle" id="timer-display">30</div>
+            <p class="mt-8 text-lg md:text-xl text-blue-200 font-medium text-center">Класс обсуждает правильный ответ...</p>
+            <button onclick="stopTimer()" class="mt-10 px-8 py-4 bg-red-800 hover:bg-red-700 rounded-full text-white text-lg font-bold transition border border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.5)]">Остановить таймер</button>
+        </div>
+    </div>
+
+    <!-- Game Over / Win Modal -->
+    <div id="modal-result" class="absolute inset-0 z-50 hidden flex items-center justify-center modal-overlay">
+        <div class="bg-gradient-to-b from-blue-950 to-[#090a16] border-4 border-yellow-500 rounded-[2rem] p-8 md:p-12 max-w-2xl w-11/12 text-center shadow-[0_0_60px_rgba(234,179,8,0.4)] flex flex-col items-center">
+            <h2 id="result-title" class="text-4xl md:text-5xl font-black text-yellow-500 mb-6 uppercase">Игра окончена!</h2>
+            <p class="text-xl md:text-2xl mb-2 text-blue-200 font-semibold">Ваш счет (баллы):</p>
+            <p id="result-score" class="text-5xl md:text-6xl font-black text-green-400 mb-8 drop-shadow-[0_0_10px_rgba(74,222,128,0.8)]">0</p>
+            <p id="result-comment" class="text-lg md:text-xl text-white mb-10 font-medium leading-relaxed">Хорошая попытка!</p>
+            <button onclick="location.reload()" class="px-10 py-4 md:px-12 md:py-5 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-gray-900 rounded-full text-xl md:text-2xl font-black transition shadow-[0_0_20px_rgba(234,179,8,0.6)] transform hover:scale-105">Играть снова</button>
+        </div>
+    </div>
+
+    <script>
+        const questionsData = [
+            { q: "Что делает точка, поставленная справа от ноты?", options: ["Увеличивает длительность ровно наполовину", "Увеличивает её в два раза", "Ничего не меняет", "Уменьшает длительность наполовину"], correct: 0 },
+            { q: "На какой ступени лада находится доминанта?", options: ["На I ступени", "На IV ступени", "На V ступени", "На VII ступени"], correct: 2 },
+            { q: "Какие ступени лада являются неустойчивыми?", options: ["I, III, V", "I, IV, V", "II, IV, VI, VII", "III, V, VII"], correct: 2 },
+            { q: "Чему равны четыре шестнадцатые ноты по своей длительности?", options: ["Одной половинной", "Одной четвертной", "Одной восьмой", "Одной целой"], correct: 1 },
+            { q: "Сколько тонов содержит малая терция?", options: ["1,5 тона", "2 тона", "1 тон", "0,5 тона"], correct: 0 },
+            { q: "Из чего состоит мажорное трезвучие (снизу вверх)?", options: ["Большая терция + малая терция", "Малая терция + большая терция", "Две большие терции", "Две малые терции"], correct: 0 },
+            { q: "Что такое синкопа в музыке?", options: ["Деление доли на три части", "Удлинение ноты с точкой", "Перенос ударения со слабой доли на сильную", "Перенос музыкального ударения с сильной доли на слабую"], correct: 3 },
+            { q: "Как образуется триоль?", options: ["Аккорд из трех звуков", "Когда основная доля делится на 3 равные части вместо 2", "Интервал в три тона", "Особый музыкальный размер"], correct: 1 },
+            { q: "В какой интервал обращается квинта?", options: ["В терцию", "В кварту", "В сексту", "В октаву"], correct: 1 },
+            { q: "Как называется первое обращение трезвучия?", options: ["Секстаккорд", "Квартсекстаккорд", "Септаккорд", "Нонаккорд"], correct: 0 },
+            { q: "Какая ступень всегда повышается в гармоническом миноре?", options: ["VI ступень", "IV ступень", "VII ступень", "II ступень"], correct: 2 },
+            { q: "Что такое параллельные тональности?", options: ["Тональности с одинаковой тоникой, но разными знаками", "Тональности с одинаковым ладом", "Мажор и минор без ключевых знаков", "Мажор и минор, которые имеют одинаковые ключевые знаки, но разные тоники"], correct: 3 },
+            { q: "Какие ключевые знаки стоят при ключе в тональностях Ре мажор и си минор?", options: ["Два диеза (фа-диез и до-диез)", "Один диез (фа-диез)", "Два бемоля (си-бемоль и ми-бемоль)", "Три диеза (фа, до, соль)"], correct: 0 },
+            { q: "На какой ступени лада всегда строится доминантовый септаккорд?", options: ["На I ступени", "На V ступени", "На IV ступени", "На VII ступени"], correct: 1 },
+            { q: "Что такое тритон и какие интервалы к нему относятся?", options: ["Интервал 3 тона (увеличенная кварта или уменьшенная квинта)", "Интервал 3 тона (б.3 или ч.4)", "Интервал 3 полутона (м.3)", "Любой аккорд на главных ступенях"], correct: 0 }
+        ];
+
+        const prizes = [100, 200, 300, 500, 1000, 2000, 4000, 8000, 16000, 32000, 64000, 125000, 250000, 500000, 1000000];
+        
+        let currentLevel = 0;
+        let guaranteedPrize = 0;
+        let isAnswering = false;
+        
+        let used5050 = false;
+        let usedAudience = false;
+        let usedTeam = false;
+
+        let audioCtx;
+
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playTone(freq, type, duration, vol = 0.1, delay = 0) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime + delay);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + delay + duration);
+            osc.start(audioCtx.currentTime + delay);
+            osc.stop(audioCtx.currentTime + delay + duration);
+        }
+
+        const sfx = {
+            select: () => { playTone(400, 'sine', 0.2, 0.2); playTone(500, 'triangle', 0.3, 0.1); },
+            correct: () => { playTone(523.25, 'sine', 0.2); playTone(659.25, 'sine', 0.2, 0.1, 0.15); playTone(783.99, 'sine', 0.5, 0.1, 0.3); },
+            wrong: () => { playTone(250, 'sawtooth', 0.4, 0.2); playTone(200, 'sawtooth', 0.6, 0.2, 0.3); },
+            win: () => {
+                const notes = [523.25, 659.25, 783.99, 1046.50, 783.99, 1046.50];
+                notes.forEach((n, i) => playTone(n, 'square', 0.4, 0.1, i * 0.2));
+            },
+            tick: () => playTone(800, 'sine', 0.05, 0.05)
+        };
+
+        function formatMoney(num) { return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
+
+        function buildLadder() {
+            const ladder = document.getElementById('ladder');
+            ladder.innerHTML = '';
+            for (let i = 0; i < prizes.length; i++) {
+                const levelDiv = document.createElement('div');
+                const isSafe = (i === 4 || i === 9 || i === 14);
+                levelDiv.className = `ladder-item text-right text-lg md:text-xl flex justify-between px-3 py-1 ${isSafe ? 'safe border-b border-yellow-700/50' : 'text-blue-200'}`;
+                levelDiv.innerHTML = `<span>${i + 1}</span> <span>${formatMoney(prizes[i])}</span>`;
+                levelDiv.id = `ladder-${i}`;
+                ladder.appendChild(levelDiv);
+            }
+        }
+
+        function updateLadder() {
+            document.querySelectorAll('.ladder-item').forEach(el => el.classList.remove('active'));
+            if (currentLevel < prizes.length) {
+                document.getElementById(`ladder-${currentLevel}`).classList.add('active');
+            }
+        }
+
+        function loadQuestion() {
+            isAnswering = false;
+            updateLadder();
+            const qData = questionsData[currentLevel];
+            document.getElementById('question-text').innerText = qData.q;
+            
+            const letters = ['A', 'B', 'C', 'D'];
+            const container = document.getElementById('answers-container');
+            container.innerHTML = '';
+
+            // Render options (keep the original order as it was handled internally)
+            qData.options.forEach((opt, idx) => {
+                const div = document.createElement('div');
+                div.className = "answer-box clip-hex relative flex items-center px-6 py-4 md:px-10 md:py-5 min-h-[80px] group";
+                div.id = `ans-${idx}`;
+                div.onclick = () => selectAnswer(idx);
+                
+                div.innerHTML = `
+                    <div class="absolute inset-0 bg-blue-400 clip-hex opacity-0 group-hover:opacity-10 transition duration-300"></div>
+                    <span class="text-yellow-500 font-bold text-xl md:text-2xl mr-3 md:mr-5 w-6 md:w-8">◆ ${letters[idx]}:</span>
+                    <span class="text-white text-sm md:text-xl font-semibold leading-tight flex-1">${opt}</span>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function selectAnswer(index) {
+            if (isAnswering) return;
+            isAnswering = true;
+            initAudio();
+            
+            const qData = questionsData[currentLevel];
+            const selectedEl = document.getElementById(`ans-${index}`);
+            
+            sfx.select();
+            selectedEl.classList.add('selected');
+
+            setTimeout(() => {
+                selectedEl.classList.remove('selected');
+                
+                if (index === qData.correct) {
+                    sfx.correct();
+                    selectedEl.classList.add('correct');
+                    
+                    if (currentLevel === 4) guaranteedPrize = prizes[4];
+                    if (currentLevel === 9) guaranteedPrize = prizes[9];
+
+                    setTimeout(() => {
+                        currentLevel++;
+                        if (currentLevel >= prizes.length) {
+                            showResult(true, prizes[prizes.length - 1]);
+                        } else {
+                            loadQuestion();
+                        }
+                    }, 2500);
+                } else {
+                    sfx.wrong();
+                    selectedEl.classList.add('wrong');
+                    document.getElementById(`ans-${qData.correct}`).classList.add('correct');
+                    
+                    setTimeout(() => {
+                        showResult(false, guaranteedPrize);
+                    }, 3500);
+                }
+            }, 2500);
+        }
+
+        function use5050() {
+            if (used5050 || isAnswering) return;
+            initAudio();
+            used5050 = true;
+            document.getElementById('life-50').classList.add('used');
+            
+            const correct = questionsData[currentLevel].correct;
+            let wrongIndices = [0, 1, 2, 3].filter(i => i !== correct);
+            wrongIndices.sort(() => Math.random() - 0.5);
+            
+            document.getElementById(`ans-${wrongIndices[0]}`).style.visibility = 'hidden';
+            document.getElementById(`ans-${wrongIndices[1]}`).style.visibility = 'hidden';
+            sfx.select();
+        }
+
+        function useAudience() {
+            if (usedAudience || isAnswering) return;
+            initAudio();
+            usedAudience = true;
+            document.getElementById('life-aud').classList.add('used');
+            
+            const correct = questionsData[currentLevel].correct;
+            let p = [0, 0, 0, 0];
+            
+            let remaining = 100;
+            p[correct] = Math.floor(Math.random() * 25) + (currentLevel < 5 ? 65 : 45); 
+            if (p[correct] > 100) p[correct] = 100;
+            remaining -= p[correct];
+
+            let wrongIndices = [0, 1, 2, 3].filter(i => i !== correct);
+            let activeWrong = [];
+            wrongIndices.forEach(idx => {
+                if(document.getElementById(`ans-${idx}`).style.visibility === 'hidden') {
+                    p[idx] = 0;
+                } else {
+                    activeWrong.push(idx);
+                }
+            });
+
+            if (activeWrong.length === 1) {
+                p[activeWrong[0]] = remaining;
+            } else {
+                p[activeWrong[0]] = Math.floor(Math.random() * remaining);
+                p[activeWrong[1]] = remaining - p[activeWrong[0]];
+                p[activeWrong[2]] = 0; 
+            }
+
+            document.getElementById('modal-audience').classList.remove('hidden');
+            
+            setTimeout(() => {
+                for (let i = 0; i < 4; i++) {
+                    document.getElementById(`bar-${i}`).style.height = `${p[i]}%`;
+                    document.getElementById(`pct-${i}`).innerText = `${p[i]}%`;
+                }
+                sfx.correct();
+            }, 300);
+        }
+
+        let timerInterval;
+        function useTeamCouncil() {
+            if (usedTeam || isAnswering) return;
+            initAudio();
+            usedTeam = true;
+            document.getElementById('life-team').classList.add('used');
+            document.getElementById('modal-team').classList.remove('hidden');
+            
+            let timeLeft = 30;
+            const timerEl = document.getElementById('timer-display');
+            timerEl.innerText = timeLeft;
+            timerEl.style.color = '#eab308';
+            timerEl.style.borderColor = '#eab308';
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerEl.innerText = timeLeft;
+                sfx.tick();
+                
+                if (timeLeft <= 10) {
+                    timerEl.style.color = '#ef4444';
+                    timerEl.style.borderColor = '#ef4444';
+                }
+                
+                if (timeLeft <= 0) stopTimer();
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            closeModal('modal-team');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function showResult(win, score) {
+            document.getElementById('modal-result').classList.remove('hidden');
+            document.getElementById('result-score').innerText = formatMoney(score);
+            
+            const titleEl = document.getElementById('result-title');
+            const commentEl = document.getElementById('result-comment');
+            
+            if (win) {
+                sfx.win();
+                titleEl.innerText = "АБСОЛЮТНАЯ ПОБЕДА!";
+                titleEl.className = "text-3xl md:text-5xl font-black text-green-400 mb-6 uppercase";
+                commentEl.innerText = "Блестящие знания! Вы настоящий знаток музыкальной теории. Оценка: 5+";
+            } else {
+                titleEl.innerText = "ИГРА ОКОНЧЕНА";
+                titleEl.className = "text-3xl md:text-5xl font-black text-red-500 mb-6 uppercase";
+                if (score === 0) {
+                    commentEl.innerText = "Материал не усвоен. Обязательно повторите конспект!";
+                } else if (score < 32000) {
+                    commentEl.innerText = "Базовые знания есть, но сложные темы требуют дополнительного внимания.";
+                } else {
+                    commentEl.innerText = "Отличный результат! Теория усвоена на твердую четверку с плюсом.";
+                }
+            }
+        }
+
+        function startGame() {
+            initAudio();
+            document.getElementById('start-screen').classList.add('hidden');
+            if(document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(e => console.log(e));
+            }
+            buildLadder();
+            loadQuestion();
+        }
+    </script>
+</body>
+</html>
